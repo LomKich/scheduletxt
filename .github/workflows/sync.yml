@@ -2,21 +2,25 @@ name: Sync from Yandex Disk
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # каждые 6 часов
-  workflow_dispatch:          # или вручную кнопкой
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download files from Yandex Disk
         run: |
           PUBLIC_KEY="https://disk.yandex.ru/d/mjhoc7kysmQEuQ"
           ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$PUBLIC_KEY'))")
           
-          # Получаем список файлов
           curl -s "https://cloud-api.yandex.net/v1/disk/public/resources?public_key=$ENCODED&limit=100" \
             | python3 -c "
           import json,sys,urllib.request,urllib.parse
