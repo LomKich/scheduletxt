@@ -32,40 +32,39 @@ jobs:
         run: |
           git config core.quotepath false
           PUBLIC_KEY="https://disk.yandex.ru/d/mjhoc7kysmQEuQ"
-          ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$PUBLIC_KEY'))")
+          
+          python3 << 'PYEOF'
+          import json, sys, os, urllib.request, urllib.parse
 
-          python3 - << 'PYEOF'
-import json, sys, os, urllib.request, urllib.parse
+          PUBLIC_KEY = "https://disk.yandex.ru/d/mjhoc7kysmQEuQ"
+          ENCODED    = urllib.parse.quote(PUBLIC_KEY)
 
-PUBLIC_KEY = "https://disk.yandex.ru/d/mjhoc7kysmQEuQ"
-ENCODED    = urllib.parse.quote(PUBLIC_KEY)
+          list_url = f"https://cloud-api.yandex.net/v1/disk/public/resources?public_key={ENCODED}&limit=100"
+          with urllib.request.urlopen(list_url, timeout=30) as r:
+              data = json.load(r)
 
-list_url = f"https://cloud-api.yandex.net/v1/disk/public/resources?public_key={ENCODED}&limit=100"
-with urllib.request.urlopen(list_url, timeout=30) as r:
-    data = json.load(r)
+          os.makedirs("schedule", exist_ok=True)
+          downloaded = 0
 
-os.makedirs("schedule", exist_ok=True)
-downloaded = 0
+          for item in data["_embedded"]["items"]:
+              if item["type"] != "file":
+                  continue
+              name = item["name"]
+              if not name.lower().endswith((".doc", ".docx")):
+                  continue
 
-for item in data["_embedded"]["items"]:
-    if item["type"] != "file":
-        continue
-    name = item["name"]
-    if not name.lower().endswith((".doc", ".docx")):
-        continue
+              enc_path = urllib.parse.quote(item["path"])
+              dl_url   = f"https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key={ENCODED}&path={enc_path}"
+              with urllib.request.urlopen(dl_url, timeout=30) as r:
+                  href = json.load(r)["href"]
+              with urllib.request.urlopen(href, timeout=90) as r2:
+                  with open(os.path.join("schedule", name), "wb") as f:
+                      f.write(r2.read())
+              print(f"Downloaded: schedule/{name}")
+              downloaded += 1
 
-    enc_path = urllib.parse.quote(item["path"])
-    dl_url   = f"https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key={ENCODED}&path={enc_path}"
-    with urllib.request.urlopen(dl_url, timeout=30) as r:
-        href = json.load(r)["href"]
-    with urllib.request.urlopen(href, timeout=90) as r2:
-        with open(os.path.join("schedule", name), "wb") as f:
-            f.write(r2.read())
-    print(f"Downloaded: schedule/{name}")
-    downloaded += 1
-
-print(f"Total: {downloaded} files")
-PYEOF
+          print(f"Total: {downloaded} files")
+          PYEOF
 
       - name: Commit and push
         run: |
