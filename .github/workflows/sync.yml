@@ -1,0 +1,42 @@
+name: Sync from Yandex Disk
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # каждые 6 часов
+  workflow_dispatch:          # или вручную кнопкой
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download files from Yandex Disk
+        run: |
+          PUBLIC_KEY="https://disk.yandex.ru/d/mjhoc7kysmQEuQ"
+          ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$PUBLIC_KEY'))")
+          
+          # Получаем список файлов
+          curl -s "https://cloud-api.yandex.net/v1/disk/public/resources?public_key=$ENCODED&limit=100" \
+            | python3 -c "
+          import json,sys,urllib.request,urllib.parse
+          data = json.load(sys.stdin)
+          for item in data['_embedded']['items']:
+              if item['type']=='file' and item['name'].endswith(('.doc','.docx')):
+                  enc_key = urllib.parse.quote('$PUBLIC_KEY')
+                  enc_path = urllib.parse.quote(item['path'])
+                  dl_url = f'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key={enc_key}&path={enc_path}'
+                  with urllib.request.urlopen(dl_url) as r:
+                      href = json.load(r)['href']
+                  with urllib.request.urlopen(href) as r2, open(item['name'],'wb') as f:
+                      f.write(r2.read())
+                  print(f'Downloaded: {item[\"name\"]}')
+          "
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add *.doc *.docx 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "Sync schedule files $(date +'%Y-%m-%d %H:%M')"
+          git push
