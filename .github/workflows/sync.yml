@@ -18,6 +18,8 @@ jobs:
 
       - name: Download files from Yandex Disk
         run: |
+          git config core.quotepath false       # ← чтобы git не экранировал кириллицу
+          
           PUBLIC_KEY="https://disk.yandex.ru/d/mjhoc7kysmQEuQ"
           ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$PUBLIC_KEY'))")
           
@@ -41,6 +43,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add *.doc *.docx 2>/dev/null || true
+          git config core.quotepath false        # ← и здесь тоже
+          git add .                              # ← вместо *.doc *.docx
           git diff --cached --quiet || git commit -m "Sync schedule files $(date +'%Y-%m-%d %H:%M')"
           git push
