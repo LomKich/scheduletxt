@@ -2,7 +2,7 @@ name: Sync from Yandex Disk
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # каждые 6 часов
+    - cron: '0 * * * *'   # каждый час
   workflow_dispatch:          # или вручную кнопкой
 
 permissions:
@@ -45,7 +45,30 @@ jobs:
 
           os.makedirs("schedule", exist_ok=True)
           downloaded = 0
+          deleted = 0
 
+          # Собираем список файлов на Яндекс Диске
+          remote_files = set()
+          for item in data["_embedded"]["items"]:
+              if item["type"] != "file":
+                  continue
+              name = item["name"]
+              if not name.lower().endswith((".doc", ".docx")):
+                  continue
+              remote_files.add(name)
+
+          # Удаляем из репо файлы, которых больше нет на Яндекс Диске
+          for fname in os.listdir("schedule"):
+              if fname == ".gitkeep":
+                  continue
+              if not fname.lower().endswith((".doc", ".docx")):
+                  continue
+              if fname not in remote_files:
+                  os.remove(os.path.join("schedule", fname))
+                  print(f"Deleted (not found on Yandex Disk): schedule/{fname}")
+                  deleted += 1
+
+          # Скачиваем актуальные файлы с Яндекс Диска
           for item in data["_embedded"]["items"]:
               if item["type"] != "file":
                   continue
@@ -63,7 +86,7 @@ jobs:
               print(f"Downloaded: schedule/{name}")
               downloaded += 1
 
-          print(f"Total: {downloaded} files")
+          print(f"Total downloaded: {downloaded} | deleted: {deleted}")
           PYEOF
 
       - name: Commit and push
